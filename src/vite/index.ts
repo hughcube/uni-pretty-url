@@ -35,7 +35,9 @@ function resolveRealVueRouter(root: string): string {
         ? pkgJson.module.replace(/^\.\//, '')
         : 'dist/vue-router.mjs'
     const distEsm = pkgJsonPath.replace(/package\.json$/, esmEntry)
-    return pathToFileURL(distEsm).href
+    // Vite's import-analysis cannot resolve a file:// URL specifier; emit the
+    // path via the /@fs/ prefix, which Vite resolves in both dev and build.
+    return '/@fs/' + distEsm.replace(/\\/g, '/')
   } catch {
     throw new Error(
       'uni-pretty-url: unable to resolve vue-router. Please ensure vue-router is installed in your project.',

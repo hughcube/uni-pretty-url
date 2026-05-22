@@ -108,7 +108,9 @@ describe('uniPrettyUrl plugin', () => {
       const result = (plugin as any).load('\0virtual:uni-pretty-url/vue-router-real')
       expect(result).toBeDefined()
       expect(result).toContain('export * from')
-      expect(result).toContain('file://')
+      // 必须是 Vite 可解析的 /@fs/ 前缀，不能是 file:// URL
+      expect(result).toContain('/@fs/')
+      expect(result).not.toContain('file://')
     })
 
     it('wrapper 模块嵌入配置 JSON', () => {
