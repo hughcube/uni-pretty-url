@@ -1,0 +1,8 @@
+node_modules
+dist
+*.tsbuildinfo
+coverage
+/demo/
+.codex-review-files.json
+.codex-review-task.txt
+/docs/

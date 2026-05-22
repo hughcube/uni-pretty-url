@@ -1,0 +1,71 @@
+{
+  "name": "uni-pretty-url",
+  "version": "0.0.0",
+  "description": "让 uni-app H5 拥有干净的 URL——去掉 /pages/ 前缀、支持路径参数别名",
+  "type": "module",
+  "main": "./dist/vite.cjs",
+  "exports": {
+    ".": {
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js",
+      "require": "./dist/vite.cjs"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js",
+      "require": "./dist/vite.cjs"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js",
+      "require": "./dist/core.cjs"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "import": "./dist/runtime.js",
+      "require": "./dist/runtime.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "uni-app",
+    "vue-router",
+    "clean-url",
+    "pretty-url",
+    "h5",
+    "url-rewrite",
+    "seo",
+    "vite-plugin"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hughcube/uni-pretty-url.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hughcube/uni-pretty-url/issues"
+  },
+  "homepage": "https://github.com/hughcube/uni-pretty-url#readme",
+  "license": "MIT",
+  "peerDependencies": {
+    "vue-router": "^4.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@vitest/coverage-v8": "^2.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.0.0",
+    "vitest": "^2.0.0",
+    "vue-router": "^4.4.0"
+  }
+}
