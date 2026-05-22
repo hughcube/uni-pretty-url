@@ -218,4 +218,26 @@ describe('normalizeConstraint (via compile)', () => {
     expect(match(c, '/path/(x)')).toEqual({ name: '(x)' })
     expect(match(c, '/path/())')).toEqual({ name: '())' })
   })
+
+  it('命名捕获组转为非捕获,不破坏多参数索引', () => {
+    // 第一个参数的约束里含命名捕获组 (?<y>...),若不归一化会多吃一个捕获组,
+    // 导致第二个参数 z 拿到错误的值。
+    const c = compile('/a/:x((?<y>\\d{4}))/:z(\\d+)')
+    expect(match(c, '/a/2024/5')).toEqual({ x: '2024', z: '5' })
+  })
+
+  it('lookbehind (?<=...) / (?<!...) 不被误当作命名捕获组', () => {
+    expect(compile('/p/:id((?<=v)\\d+)').regex.source).toContain('(?<=v)')
+    expect(compile('/p/:id((?<!v)\\d+)').regex.source).toContain('(?<!v)')
+  })
+})
+
+describe('compile 错误处理', () => {
+  it('非法约束正则抛出友好错误', () => {
+    expect(() => compile('/p/:id(*)')).toThrow('invalid pattern')
+  })
+
+  it('空参数名抛出友好错误', () => {
+    expect(() => compile('/p/:/x')).toThrow('empty param name')
+  })
 })

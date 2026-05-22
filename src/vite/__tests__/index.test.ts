@@ -125,6 +125,17 @@ describe('uniPrettyUrl plugin', () => {
       expect(result).toContain('"real":"/pages/test"')
     })
 
+    it('alias 省略 params 时插件正常工作', () => {
+      process.env.UNI_PLATFORM = 'h5'
+      // 无路径参数的 alias 不应要求 params 字段(类型与运行时都要支持)
+      const plugin = uniPrettyUrl({
+        aliases: [{ real: '/pages/index/index', pretty: '/' }],
+      })
+      const result = (plugin as any).load('\0virtual:uni-pretty-url/vue-router-wrapper')
+      expect(result).toContain('"real":"/pages/index/index"')
+      expect(result).toContain('"pretty":"/"')
+    })
+
     it('wrapper 模块从 uni-pretty-url/runtime 导入', () => {
       process.env.UNI_PLATFORM = 'h5'
       const plugin = uniPrettyUrl()
