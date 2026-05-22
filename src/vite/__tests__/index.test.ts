@@ -87,8 +87,7 @@ describe('uniPrettyUrl plugin', () => {
       expect(result).toBeDefined()
       expect(typeof result).toBe('string')
       expect(result).toContain('createWebHistory')
-      expect(result).toContain('toPretty')
-      expect(result).toContain('toReal')
+      expect(result).toContain('createPrettyHistory')
     })
 
     it('H5 平台 wrapper 模块包含 createWebHashHistory 抛错', () => {
@@ -126,11 +125,11 @@ describe('uniPrettyUrl plugin', () => {
       expect(result).toContain('"real":"/pages/test"')
     })
 
-    it('wrapper 模块从 uni-pretty-url/core 导入', () => {
+    it('wrapper 模块从 uni-pretty-url/runtime 导入', () => {
       process.env.UNI_PLATFORM = 'h5'
       const plugin = uniPrettyUrl()
       const result = (plugin as any).load('\0virtual:uni-pretty-url/vue-router-wrapper')
-      expect(result).toContain("from 'uni-pretty-url/core'")
+      expect(result).toContain("from 'uni-pretty-url/runtime'")
     })
 
     it('不相关的 virtual ID 返回 null', () => {

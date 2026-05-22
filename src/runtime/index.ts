@@ -22,18 +22,18 @@ export function createPrettyHistory(
     },
 
     push(to: HistoryLocation, data?: any) {
-      raw.push(toPretty(to, config), data)
+      raw.push(toPretty(String(to), config), data)
     },
 
     replace(to: HistoryLocation, data?: any) {
-      raw.replace(toPretty(to, config), data)
+      raw.replace(toPretty(String(to), config), data)
     },
 
     go(delta: number, triggerListeners?: boolean) {
       raw.go(delta, triggerListeners)
     },
 
-    listen(callback: any): () => void {
+    listen(callback: Parameters<RouterHistory['listen']>[0]): () => void {
       return raw.listen((to, from, info) => {
         callback(toReal(to, config), toReal(from, config), info)
       })

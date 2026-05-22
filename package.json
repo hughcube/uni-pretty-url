@@ -56,6 +56,10 @@
   },
   "homepage": "https://github.com/hughcube/uni-pretty-url#readme",
   "license": "MIT",
+  "packageManager": "pnpm@10.5.0",
+  "engines": {
+    "node": ">=18"
+  },
   "peerDependencies": {
     "vue-router": "^4.4.0"
   },

@@ -1,6 +1,7 @@
-import type { Plugin, ResolvedConfig } from 'vite'
+import type { Plugin } from 'vite'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
+import { readFileSync } from 'node:fs'
 import type { PrettyUrlConfig } from '../core/types'
 
 const VIRTUAL_WRAPPER = '\0virtual:uni-pretty-url/vue-router-wrapper'
@@ -14,7 +15,7 @@ export interface UniPrettyUrlOptions {
   aliases?: {
     real: string
     pretty: string
-    params: Record<string, string>
+    params?: Record<string, string>
   }[]
   strip?: {
     excludePrefixes?: string[]
@@ -26,8 +27,14 @@ function resolveRealVueRouter(root: string): string {
   const base = pathToFileURL(root + '/package.json').href
   const req = createRequire(base)
   try {
-    const pkg = req.resolve('vue-router/package.json', { paths: [root] })
-    const distEsm = pkg.replace(/package\.json$/, 'dist/vue-router.mjs')
+    const pkgJsonPath = req.resolve('vue-router/package.json', { paths: [root] })
+    // Read the package's own ESM entry instead of hardcoding the dist layout.
+    const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'))
+    const esmEntry =
+      typeof pkgJson.module === 'string'
+        ? pkgJson.module.replace(/^\.\//, '')
+        : 'dist/vue-router.mjs'
+    const distEsm = pkgJsonPath.replace(/package\.json$/, esmEntry)
     return pathToFileURL(distEsm).href
   } catch {
     throw new Error(
@@ -39,34 +46,18 @@ function resolveRealVueRouter(root: string): string {
 function generateWrapperModule(config: PrettyUrlConfig): string {
   const serializedConfig = JSON.stringify(config)
 
+  // The RouterHistory adapter lives in uni-pretty-url/runtime (createPrettyHistory)
+  // — keep this wrapper a thin shell so there is a single source of truth.
   return `
 import * as __RealVueRouter from '${RESOLVED_REAL}'
-import { toPretty as coreToPretty, toReal as coreToReal } from 'uni-pretty-url/core'
+import { createPrettyHistory } from 'uni-pretty-url/runtime'
 
 const __config = ${serializedConfig}
-
-function toPretty(url) { return coreToPretty(url, __config) }
-function toReal(url) { return coreToReal(url, __config) }
 
 export * from '${RESOLVED_REAL}'
 
 export function createWebHistory(base) {
-  var raw = __RealVueRouter.createWebHistory(base)
-  return {
-    get base() { return raw.base },
-    get location() { return toReal(raw.location) },
-    get state() { return raw.state },
-    push: function(to, data) { raw.push(toPretty(String(to)), data) },
-    replace: function(to, data) { raw.replace(toPretty(String(to)), data) },
-    go: function(delta, triggerListeners) { raw.go(delta, triggerListeners) },
-    listen: function(callback) {
-      return raw.listen(function(to, from, info) {
-        callback(toReal(to), toReal(from), info)
-      })
-    },
-    createHref: function(location) { return raw.createHref(toPretty(location)) },
-    destroy: function() { raw.destroy() }
-  }
+  return createPrettyHistory(__RealVueRouter.createWebHistory(base), __config)
 }
 
 export function createWebHashHistory(base) {
@@ -78,7 +69,6 @@ export function createWebHashHistory(base) {
 }
 
 export function uniPrettyUrl(options: UniPrettyUrlOptions = {}): Plugin {
-  let resolvedConfig: ResolvedConfig
   let realVueRouterPath: string | null = null
 
   const config: PrettyUrlConfig = {
@@ -111,8 +101,6 @@ export function uniPrettyUrl(options: UniPrettyUrlOptions = {}): Plugin {
     },
 
     configResolved(config) {
-      resolvedConfig = config
-
       const isH5 = process.env.UNI_PLATFORM === 'h5'
       if (!isH5) return
 

@@ -18,6 +18,7 @@
 - [配置别名](#配置别名)
 - [完整配置参考](#完整配置参考)
 - [接入已有项目](#接入已有项目)
+- [部署](#部署)
 - [常见问题](#常见问题)
 - [API 参考](#api-参考)
 - [原理简述](#原理简述)
@@ -253,6 +254,24 @@ interface UniPrettyUrlOptions {
 
 ---
 
+## 部署
+
+history 模式下，美化后的 URL（如 `/topics/123`）是前端路由，服务器上并没有对应的物理文件。**生产环境必须配置 SPA fallback**，把未命中静态资源的请求统一回退到 `index.html`，否则用户直接访问或刷新美化 URL 会得到 404。
+
+Nginx 示例：
+
+```nginx
+location / {
+  try_files $uri $uri/ /index.html;
+}
+```
+
+Vercel / Netlify / Cloudflare Pages 等静态托管平台开启「SPA / single-page app」回退即可。若部署在子路径下，需让 `manifest.json` 的 `h5.router.base` 与服务器路径保持一致。
+
+> 本地 `dev:h5` 用的是 Vite dev server，已自带 SPA fallback，所以开发时不会遇到这个问题——它只在生产部署时才出现。
+
+---
+
 ## 常见问题
 
 ### Q: 启动后地址栏还是带 `/pages/`？
@@ -337,7 +356,7 @@ import { createPrettyHistory } from 'uni-pretty-url/runtime'
 | `history.listen(fn)` | 回调参数中的路径做美化→真实转换 |
 | `history.createHref(url)` | 真实路径 → 美化路径 |
 
-整个过程不到 80 行代码（`src/vite/index.ts` 中的 `generateWrapperModule`）。不猴补丁任何 uni-app 内部 API，不触碰 `uni.navigateTo` 等导航方法。
+整个适配层就是 `src/runtime/index.ts` 里的 `createPrettyHistory`，不到 50 行代码；Vite 插件只负责把它接到 uni-app 内部的 `vue-router` 上。不猴补丁任何 uni-app 内部 API，不触碰 `uni.navigateTo` 等导航方法。
 
 ---
 
