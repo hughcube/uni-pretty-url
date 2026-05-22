@@ -1,8 +1,22 @@
 import type { AliasRule, PrettyUrlConfig } from './types'
-import { compile, generate, match } from './matcher'
+import type { CompiledPattern } from './matcher'
+import { compile, generate, match, safeDecode } from './matcher'
 
 export * from './types'
 export { compile, match, generate } from './matcher'
+
+// compile() builds a RegExp on every call; cache by pattern string so the
+// per-navigation hot path (toPretty/toReal) does not recompile each alias.
+const compileCache = new Map<string, CompiledPattern>()
+
+function compileCached(pattern: string): CompiledPattern {
+  let compiled = compileCache.get(pattern)
+  if (!compiled) {
+    compiled = compile(pattern)
+    compileCache.set(pattern, compiled)
+  }
+  return compiled
+}
 
 function parseUrl(url: string): { pathname: string; query: string; hash: string } {
   const hashIdx = url.indexOf('#')
@@ -12,14 +26,6 @@ function parseUrl(url: string): { pathname: string; query: string; hash: string 
   const pathname = queryIdx >= 0 ? noHash.slice(0, queryIdx) : noHash
   const query = queryIdx >= 0 ? noHash.slice(queryIdx + 1) : ''
   return { pathname, query, hash }
-}
-
-function safeDecode(s: string): string {
-  try {
-    return decodeURIComponent(s)
-  } catch {
-    return s
-  }
 }
 
 interface QueryPart {
@@ -78,7 +84,7 @@ function resolvePretty(aliases: AliasRule[], pathname: string): {
   params: Record<string, string>
 } | null {
   for (const alias of aliases) {
-    const compiled = compile(alias.pretty)
+    const compiled = compileCached(alias.pretty)
     const params = match(compiled, pathname)
     if (params) return { alias, params }
   }
@@ -131,7 +137,7 @@ export function toPretty(rawUrl: string, config: PrettyUrlConfig): string {
   if (alias) {
     const pathParams: Record<string, string> = {}
     const consumedKeys = new Set<string>()
-    const compiled = compile(alias.pretty)
+    const compiled = compileCached(alias.pretty)
     const paramSources = getAliasParamSources(alias, compiled.paramNames)
 
     for (const [paramName, source] of Object.entries(paramSources)) {
@@ -187,7 +193,7 @@ export function toReal(prettyUrl: string, config: PrettyUrlConfig): string {
   if (resolved) {
     const generatedQuery: string[] = []
     const consumedKeys = new Set<string>()
-    const compiled = compile(resolved.alias.pretty)
+    const compiled = compileCached(resolved.alias.pretty)
     const paramSources = getAliasParamSources(resolved.alias, compiled.paramNames)
 
     for (const [paramName, source] of Object.entries(paramSources)) {
