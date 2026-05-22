@@ -136,11 +136,11 @@ describe('uniPrettyUrl plugin', () => {
       expect(result).toContain('"pretty":"/"')
     })
 
-    it('wrapper 模块从 uni-pretty-url/runtime 导入', () => {
+    it('wrapper 模块从 @hughcube/uni-pretty-url/runtime 导入', () => {
       process.env.UNI_PLATFORM = 'h5'
       const plugin = uniPrettyUrl()
       const result = (plugin as any).load('\0virtual:uni-pretty-url/vue-router-wrapper')
-      expect(result).toContain("from 'uni-pretty-url/runtime'")
+      expect(result).toContain("from '@hughcube/uni-pretty-url/runtime'")
     })
 
     it('不相关的 virtual ID 返回 null', () => {

@@ -1,8 +1,8 @@
 # uni-pretty-url
 
-[![npm version](https://img.shields.io/npm/v/uni-pretty-url)](https://www.npmjs.com/package/uni-pretty-url)
+[![npm version](https://img.shields.io/npm/v/@hughcube/uni-pretty-url)](https://www.npmjs.com/package/@hughcube/uni-pretty-url)
 [![CI](https://github.com/hughcube/uni-pretty-url/actions/workflows/ci.yml/badge.svg)](https://github.com/hughcube/uni-pretty-url/actions/workflows/ci.yml)
-[![license](https://img.shields.io/npm/l/uni-pretty-url)](./LICENSE)
+[![license](https://img.shields.io/npm/l/@hughcube/uni-pretty-url)](./LICENSE)
 
 让你的 uni-app（Vue 3 + Vite）H5 应用拥有干净的 URL —— 自动去掉 `/pages/` 前缀，还能把 `?id=123` 变成 `/123`。
 
@@ -60,9 +60,9 @@ https://example.com/u/alice
 ## 安装
 
 ```bash
-npm install uni-pretty-url
+npm install @hughcube/uni-pretty-url
 # 或者
-pnpm add uni-pretty-url
+pnpm add @hughcube/uni-pretty-url
 ```
 
 需要 `vue-router >= 4.4.0`。如果你用的是 uni-app + Vite，项目里已经有 vue-router 了。
@@ -95,7 +95,7 @@ pnpm add uni-pretty-url
 // vite.config.ts
 import { defineConfig } from 'vite'
 import uni from '@dcloudio/vite-plugin-uni'
-import { uniPrettyUrl } from 'uni-pretty-url/vite'
+import { uniPrettyUrl } from '@hughcube/uni-pretty-url/vite'
 
 export default defineConfig({
   plugins: [
@@ -303,20 +303,20 @@ uni-app Vue 3 + Vite 版本（`@dcloudio/uni-app` 3.x），需要 `vue-router` 4
 
 本包提供三个入口：
 
-### `uni-pretty-url/vite`
+### `@hughcube/uni-pretty-url/vite`
 
 Vite 插件，这是你唯一需要在配置文件中引入的。
 
 ```ts
-import { uniPrettyUrl } from 'uni-pretty-url/vite'
+import { uniPrettyUrl } from '@hughcube/uni-pretty-url/vite'
 ```
 
-### `uni-pretty-url/core`
+### `@hughcube/uni-pretty-url/core`
 
 核心 URL 翻译函数。
 
 ```ts
-import { toPretty, toReal, compile, match, generate } from 'uni-pretty-url/core'
+import { toPretty, toReal, compile, match, generate } from '@hughcube/uni-pretty-url/core'
 
 // toPretty: 真实路径 → 美化路径
 toPretty('/pages/course/detail?id=42', config)
@@ -332,12 +332,12 @@ match(p, '/topics/42')   // → { id: '42' }
 generate(p, { id: '42' }) // → '/topics/42'
 ```
 
-### `uni-pretty-url/runtime`
+### `@hughcube/uni-pretty-url/runtime`
 
 手动包装 RouterHistory 实例，一般不需要直接用，Vite 插件已经自动处理了。
 
 ```ts
-import { createPrettyHistory } from 'uni-pretty-url/runtime'
+import { createPrettyHistory } from '@hughcube/uni-pretty-url/runtime'
 ```
 
 ---

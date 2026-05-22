@@ -46,11 +46,11 @@ function resolveRealVueRouter(root: string): string {
 function generateWrapperModule(config: PrettyUrlConfig): string {
   const serializedConfig = JSON.stringify(config)
 
-  // The RouterHistory adapter lives in uni-pretty-url/runtime (createPrettyHistory)
-  // — keep this wrapper a thin shell so there is a single source of truth.
+  // The RouterHistory adapter lives in @hughcube/uni-pretty-url/runtime
+  // (createPrettyHistory) — keep this wrapper a thin shell, single source of truth.
   return `
 import * as __RealVueRouter from '${RESOLVED_REAL}'
-import { createPrettyHistory } from 'uni-pretty-url/runtime'
+import { createPrettyHistory } from '@hughcube/uni-pretty-url/runtime'
 
 const __config = ${serializedConfig}
 
