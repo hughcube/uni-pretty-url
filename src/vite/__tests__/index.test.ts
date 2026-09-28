@@ -37,6 +37,7 @@ describe('uniPrettyUrl plugin', () => {
       expect(aliasOpt.find).toBeInstanceOf(RegExp)
       expect(aliasOpt.find.toString()).toContain('vue-router')
       expect(aliasOpt.replacement).toBe('virtual:uni-pretty-url/vue-router-wrapper')
+      expect(result!.optimizeDeps!.exclude).toContain('vue-router')
     })
 
     it('非 H5 平台不返回 alias', () => {

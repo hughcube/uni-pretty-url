@@ -103,6 +103,9 @@ export function uniPrettyUrl(options: UniPrettyUrlOptions = {}): Plugin {
             },
           ],
         },
+        optimizeDeps: {
+          exclude: ['vue-router'],
+        },
       }
     },
 

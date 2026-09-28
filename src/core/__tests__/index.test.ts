@@ -683,6 +683,16 @@ describe('多值 query 参数', () => {
       expect(toReal('/?from=share#section', c)).toBe('/pages/index/index?from=share#section')
     })
 
+    it('配置 homeRoute 时，toPretty 正向跳转到首页自动美化为 /', () => {
+      const c = cfg({ homeRoute: '/pages/index/index' })
+      expect(toPretty('/pages/index/index', c)).toBe('/')
+    })
+
+    it('配置 homeRoute 且跳转带 query 和 hash 时，美化为带参数的 /', () => {
+      const c = cfg({ homeRoute: 'pages/index/index' })
+      expect(toPretty('/pages/index/index?from=app#section', c)).toBe('/?from=app#section')
+    })
+
     it('同时配置 alias 和 homeRoute 时，alias 优先生效', () => {
       const c = cfg({
         aliases: [{ real: '/pages/custom/home', pretty: '/' }],

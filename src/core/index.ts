@@ -225,6 +225,15 @@ export function toPretty(rawUrl: string, config: PrettyUrlConfig): string {
     }
   }
 
+  if (config.homeRoute) {
+    const home = config.homeRoute.startsWith('/') ? config.homeRoute : `/${config.homeRoute}`
+    if (normalizePath(pathname) === normalizePath(home)) {
+      if (hash) return `/${query ? '?' + query : ''}${hash}`
+      if (query) return `/?${query}`
+      return '/'
+    }
+  }
+
   const prefix = config.pagesPrefix || 'pages'
 
   const stripped = stripPagesPrefix(pathname, prefix)
