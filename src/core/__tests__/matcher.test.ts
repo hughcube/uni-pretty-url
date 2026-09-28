@@ -53,10 +53,10 @@ describe('compile', () => {
 })
 
 describe('match', () => {
-  it('精确匹配无参数 pattern', () => {
+  it('精确匹配无参数 pattern（支持末尾可选斜杠）', () => {
     const c = compile('/topics')
     expect(match(c, '/topics')).toEqual({})
-    expect(match(c, '/topics/')).toBeNull()
+    expect(match(c, '/topics/')).toEqual({})
     expect(match(c, '/other')).toBeNull()
   })
 
@@ -239,5 +239,23 @@ describe('compile 错误处理', () => {
 
   it('空参数名抛出友好错误', () => {
     expect(() => compile('/p/:/x')).toThrow('empty param name')
+  })
+
+  it('CompiledPattern 包含 segments 且用于 generate', () => {
+    const c = compile('/topics/:id')
+    expect(c.segments).toBeDefined()
+    expect(c.segments.length).toBe(2)
+    expect(generate(c, { id: '99' })).toBe('/topics/99')
+  })
+
+  it('带参数的 pattern 匹配末尾斜杠', () => {
+    const c = compile('/topics/:id')
+    expect(match(c, '/topics/42/')).toEqual({ id: '42' })
+  })
+
+  it('根路径 / 正确编译与匹配', () => {
+    const c = compile('/')
+    expect(match(c, '/')).toEqual({})
+    expect(match(c, '/extra')).toBeNull()
   })
 })

@@ -2,7 +2,7 @@ name: CI & Publish
 
 on:
   push:
-    branches: ['main']
+    branches: ['master']
     tags: ['v*']
   pull_request:
 
@@ -59,9 +59,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git checkout -B main FETCH_HEAD
+          git fetch origin master
+          git checkout -B master FETCH_HEAD
           npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
           git add package.json pnpm-lock.yaml
           git diff --staged --quiet || git commit -m "chore: release ${GITHUB_REF_NAME} [skip ci]"
-          git push origin main
+          git push origin master

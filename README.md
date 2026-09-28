@@ -1,7 +1,7 @@
 # uni-pretty-url
 
 [![npm version](https://img.shields.io/npm/v/@hughcube/uni-pretty-url)](https://www.npmjs.com/package/@hughcube/uni-pretty-url)
-[![CI](https://github.com/hughcube/uni-pretty-url/actions/workflows/ci.yml/badge.svg)](https://github.com/hughcube/uni-pretty-url/actions/workflows/ci.yml)
+[![CI](https://github.com/hughcube/uni-pretty-url/actions/workflows/publish.yml/badge.svg)](https://github.com/hughcube/uni-pretty-url/actions/workflows/publish.yml)
 [![license](https://img.shields.io/npm/l/@hughcube/uni-pretty-url)](./LICENSE)
 
 让你的 uni-app（Vue 3 + Vite）H5 应用拥有干净的 URL —— 自动去掉 `/pages/` 前缀，还能把 `?id=123` 变成 `/123`。
@@ -238,6 +238,12 @@ interface UniPrettyUrlOptions {
      */
     excludePrefixes?: string[]
   }
+
+  /**
+   * 站点根路径（"/"）默认回退页面真实路径
+   * 例如 "/pages/index/index"
+   */
+  homeRoute?: string
 }
 ```
 

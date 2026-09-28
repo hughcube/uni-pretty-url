@@ -2,15 +2,15 @@ export interface CompiledPattern {
   regex: RegExp
   paramNames: string[]
   pattern: string
+  segments: PatternSegment[]
 }
 
-// Token from unified parser — shared by compile() and generate()
-type Token = StaticToken | ParamToken
-interface StaticToken {
+export type PatternSegment = StaticSegment | ParamSegment
+export interface StaticSegment {
   type: 'static'
   value: string
 }
-interface ParamToken {
+export interface ParamSegment {
   type: 'param'
   name: string
   constraint?: string
@@ -20,7 +20,8 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-export function safeDecode(s: string): string {
+export function safeDecode(s?: string): string {
+  if (s === undefined) return ''
   try {
     return decodeURIComponent(s)
   } catch {
@@ -130,15 +131,15 @@ function findConstraintEnd(pattern: string, start: number): number {
 }
 
 // Unified tokenizer for URL patterns supporting :name and :name(constraint)
-function parsePattern(pattern: string): Token[] {
-  const tokens: Token[] = []
+function parsePattern(pattern: string): PatternSegment[] {
+  const segments: PatternSegment[] = []
   let i = 0
   let staticStart = 0
 
   while (i < pattern.length) {
     if (pattern[i] === ':') {
       if (staticStart < i) {
-        tokens.push({ type: 'static', value: pattern.slice(staticStart, i) })
+        segments.push({ type: 'static', value: pattern.slice(staticStart, i) })
       }
       // Parse param name
       let j = i + 1
@@ -154,10 +155,10 @@ function parsePattern(pattern: string): Token[] {
             `uni-pretty-url: unclosed constraint for param "${name}" in pattern "${pattern}"`,
           )
         }
-        tokens.push({ type: 'param', name, constraint: pattern.slice(j + 1, end) })
+        segments.push({ type: 'param', name, constraint: pattern.slice(j + 1, end) })
         i = end + 1
       } else {
-        tokens.push({ type: 'param', name })
+        segments.push({ type: 'param', name })
         i = j
       }
       staticStart = i
@@ -166,37 +167,45 @@ function parsePattern(pattern: string): Token[] {
     }
   }
   if (staticStart < i) {
-    tokens.push({ type: 'static', value: pattern.slice(staticStart, i) })
+    segments.push({ type: 'static', value: pattern.slice(staticStart, i) })
   }
-  return tokens
+  return segments
 }
 
 export function compile(pattern: string): CompiledPattern {
-  const tokens = parsePattern(pattern)
+  const segments = parsePattern(pattern)
   const paramNames: string[] = []
   const parts: string[] = []
 
-  for (const token of tokens) {
-    if (token.type === 'static') {
-      parts.push(escapeRegex(token.value))
+  for (const seg of segments) {
+    if (seg.type === 'static') {
+      parts.push(escapeRegex(seg.value))
     } else {
-      paramNames.push(token.name)
-      if (token.constraint) {
-        parts.push(`(${normalizeConstraint(token.constraint)})`)
+      paramNames.push(seg.name)
+      if (seg.constraint) {
+        parts.push(`(${normalizeConstraint(seg.constraint)})`)
       } else {
         parts.push('([^/]+)')
       }
     }
   }
   let regex: RegExp
+  const rawParts = parts.join('')
+  const regexStr =
+    rawParts === '/'
+      ? '^/$'
+      : rawParts.endsWith('/')
+        ? `^${rawParts.slice(0, -1)}/?$`
+        : `^${rawParts}/?$`
+
   try {
-    regex = new RegExp(`^${parts.join('')}$`)
+    regex = new RegExp(regexStr)
   } catch (e) {
     throw new Error(
       `uni-pretty-url: invalid pattern "${pattern}": ${(e as Error).message}`,
     )
   }
-  return { regex, paramNames, pattern }
+  return { regex, paramNames, pattern, segments }
 }
 
 export function match(compiled: CompiledPattern, path: string): Record<string, string> | null {
@@ -210,19 +219,19 @@ export function match(compiled: CompiledPattern, path: string): Record<string, s
 }
 
 export function generate(compiled: CompiledPattern, params: Record<string, string>): string {
-  const tokens = parsePattern(compiled.pattern)
+  const segments = compiled.segments || parsePattern(compiled.pattern)
   const parts: string[] = []
 
-  for (const token of tokens) {
-    if (token.type === 'static') {
-      parts.push(token.value)
+  for (const seg of segments) {
+    if (seg.type === 'static') {
+      parts.push(seg.value)
     } else {
-      if (!(token.name in params)) {
+      if (!(seg.name in params)) {
         throw new Error(
-          `uni-pretty-url: missing required param "${token.name}" for pattern "${compiled.pattern}"`,
+          `uni-pretty-url: missing required param "${seg.name}" for pattern "${compiled.pattern}"`,
         )
       }
-      parts.push(encodeURIComponent(params[token.name]))
+      parts.push(encodeURIComponent(params[seg.name]))
     }
   }
   return parts.join('')

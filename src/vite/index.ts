@@ -20,6 +20,7 @@ export interface UniPrettyUrlOptions {
   strip?: {
     excludePrefixes?: string[]
   }
+  homeRoute?: string
 }
 
 function resolveRealVueRouter(root: string): string {
@@ -34,10 +35,12 @@ function resolveRealVueRouter(root: string): string {
       typeof pkgJson.module === 'string'
         ? pkgJson.module.replace(/^\.\//, '')
         : 'dist/vue-router.mjs'
-    const distEsm = pkgJsonPath.replace(/package\.json$/, esmEntry)
+    const distEsm = pkgJsonPath.replace(/package\.json$/, esmEntry).replace(/\\/g, '/')
     // Vite's import-analysis cannot resolve a file:// URL specifier; emit the
     // path via the /@fs/ prefix, which Vite resolves in both dev and build.
-    return '/@fs/' + distEsm.replace(/\\/g, '/')
+    // Ensure POSIX paths starting with '/' do not produce a double slash '/@fs//'.
+    const fsPrefix = distEsm.startsWith('/') ? '/@fs' : '/@fs/'
+    return fsPrefix + distEsm
   } catch {
     throw new Error(
       'uni-pretty-url: unable to resolve vue-router. Please ensure vue-router is installed in your project.',
@@ -81,6 +84,7 @@ export function uniPrettyUrl(options: UniPrettyUrlOptions = {}): Plugin {
       params: a.params,
     })),
     strip: options.strip,
+    homeRoute: options.homeRoute,
   }
 
   return {
