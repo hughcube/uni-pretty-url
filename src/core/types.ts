@@ -10,4 +10,5 @@ export interface PrettyUrlConfig {
   strip?: {
     excludePrefixes?: string[]
   }
+  homeRoute?: string
 }

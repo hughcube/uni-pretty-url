@@ -641,4 +641,121 @@ describe('多值 query 参数', () => {
     })
     expect(toReal('/?ref=homepage', c)).toBe('/pages/index/index?ref=homepage')
   })
+
+  // === 末尾斜杠测试 ===
+  describe('末尾斜杠容错', () => {
+    const aliasConfig = cfg({
+      aliases: [
+        {
+          real: '/pages/course/detail',
+          pretty: '/topics/:id(\\d+)',
+          params: { id: 'query.id' },
+        },
+      ],
+    })
+
+    it('toReal 访问带末尾斜杠的 pretty URL 正常还原', () => {
+      expect(toReal('/topics/42/', aliasConfig)).toBe('/pages/course/detail?id=42')
+    })
+
+    it('toPretty 真实路径带末尾斜杠正常匹配 alias', () => {
+      expect(toPretty('/pages/course/detail/?id=42', aliasConfig)).toBe('/topics/42')
+    })
+
+    it('toReal 普通页面带末尾斜杠规范化添加前缀', () => {
+      expect(toReal('/home/', defaultConfig)).toBe('/pages/home')
+    })
+
+    it('toPretty 普通页面带末尾斜杠正常剥离前缀', () => {
+      expect(toPretty('/pages/home/', defaultConfig)).toBe('/home')
+    })
+  })
+
+  // === homeRoute 根路径支持 ===
+  describe('homeRoute 根路径映射', () => {
+    it('配置 homeRoute 时，访问根路径 / 自动映射到指定页面', () => {
+      const c = cfg({ homeRoute: '/pages/index/index' })
+      expect(toReal('/', c)).toBe('/pages/index/index')
+    })
+
+    it('配置 homeRoute 且访问 / 带 query 和 hash 时均保留', () => {
+      const c = cfg({ homeRoute: 'pages/index/index' })
+      expect(toReal('/?from=share#section', c)).toBe('/pages/index/index?from=share#section')
+    })
+
+    it('同时配置 alias 和 homeRoute 时，alias 优先生效', () => {
+      const c = cfg({
+        aliases: [{ real: '/pages/custom/home', pretty: '/' }],
+        homeRoute: '/pages/index/index',
+      })
+      expect(toReal('/', c)).toBe('/pages/custom/home')
+    })
+  })
+
+  // === 同一 real 多 alias 候选测试 ===
+  describe('同一 real 路径的多 alias 规则选择', () => {
+    const multiAliasConfig = cfg({
+      aliases: [
+        {
+          real: '/pages/goods/detail',
+          pretty: '/act/:actId/goods/:id',
+          params: { actId: 'query.actId', id: 'query.id' },
+        },
+        {
+          real: '/pages/goods/detail',
+          pretty: '/goods/:id',
+          params: { id: 'query.id' },
+        },
+      ],
+    })
+
+    it('根据 query 参数自适应匹配更多参数的 alias', () => {
+      expect(toPretty('/pages/goods/detail?actId=99&id=123', multiAliasConfig)).toBe(
+        '/act/99/goods/123',
+      )
+    })
+
+    it('未提供可选参数时匹配较少参数的 alias', () => {
+      expect(toPretty('/pages/goods/detail?id=123', multiAliasConfig)).toBe('/goods/123')
+    })
+
+    it('两个 alias 都不满足时抛出第一个规则的缺失参数错误', () => {
+      expect(() => toPretty('/pages/goods/detail', multiAliasConfig)).toThrow(
+        'missing required query param',
+      )
+    })
+  })
+
+  // === excludePrefixes 容错测试 ===
+  describe('excludePrefixes 容错与对称性', () => {
+    it('不带前导斜杠的 excludePrefixes 也能正常生效', () => {
+      const c = cfg({
+        strip: { excludePrefixes: ['special'] },
+      })
+      expect(toPretty('/pages/special/test', c)).toBe('/pages/special/test')
+    })
+
+    it('toReal 遇到 excludePrefixes 中的路径不强加 pages 前缀', () => {
+      const c = cfg({
+        strip: { excludePrefixes: ['special'] },
+      })
+      expect(toReal('/special/test', c)).toBe('/special/test')
+    })
+  })
+
+  // === toReal 缺失 path param 异常测试 ===
+  describe('toReal 异常处理', () => {
+    it('toReal 缺少 path param 时抛出友好错误', () => {
+      const c = cfg({
+        aliases: [
+          {
+            real: '/pages/topics/detail',
+            pretty: '/topics/:id(\\d*)',
+            params: { id: 'query.id' },
+          },
+        ],
+      })
+      expect(() => toReal('/topics/', c)).toThrow('missing path param "id"')
+    })
+  })
 })

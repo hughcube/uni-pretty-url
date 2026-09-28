@@ -205,5 +205,12 @@ describe('uniPrettyUrl plugin', () => {
       const result = (plugin as any).load('\0virtual:uni-pretty-url/vue-router-wrapper')
       expect(result).toContain('"aliases":[]')
     })
+
+    it('homeRoute 选项正确嵌入 wrapper 模块', () => {
+      process.env.UNI_PLATFORM = 'h5'
+      const plugin = uniPrettyUrl({ homeRoute: '/pages/index/index' })
+      const result = (plugin as any).load('\0virtual:uni-pretty-url/vue-router-wrapper')
+      expect(result).toContain('"homeRoute":"/pages/index/index"')
+    })
   })
 })
