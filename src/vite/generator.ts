@@ -49,6 +49,23 @@ export interface StaticPlaceholdersOptions {
    * 额外补充的自定义物理占位路径（向后兼容别名）
    */
   extraRoutes?: string[]
+
+  /**
+   * 是否在终端输出详细的文件映射清单（默认在路由数 <= 25 时自动展示完整清单，超出则折叠）
+   * @default false
+   */
+  verbose?: boolean
+}
+
+export type PlaceholderType = 'pretty' | 'raw' | 'extra'
+
+export interface PlaceholderDetail {
+  /** 访问路由路径 (如 /material, /pages/material/index) */
+  route: string
+  /** 路由类别: pretty 美化路由 | raw 原生路由兜底 | extra 额外自定义路由 */
+  type: PlaceholderType
+  /** 实际生成的物理文件相对路径列表 (相对于 outDir，统一以 / 分隔，如 ['material.html', 'material/index.html']) */
+  files: string[]
 }
 
 /**
@@ -121,6 +138,8 @@ export interface GenerateResult {
   success: boolean
   filesGenerated: string[]
   routesCount: number
+  /** 每个路由对应的物理占位文件详情清单 */
+  details: PlaceholderDetail[]
 }
 
 /**
@@ -131,12 +150,12 @@ export function generatePlaceholders(params: GeneratePlaceholdersParams): Genera
   const rawOpts = params.options
 
   if (rawOpts === false) {
-    return { success: true, filesGenerated: [], routesCount: 0 }
+    return { success: true, filesGenerated: [], routesCount: 0, details: [] }
   }
 
   const opts: StaticPlaceholdersOptions = typeof rawOpts === 'object' && rawOpts !== null ? rawOpts : {}
   if (opts.enabled === false) {
-    return { success: true, filesGenerated: [], routesCount: 0 }
+    return { success: true, filesGenerated: [], routesCount: 0, details: [] }
   }
 
   // 兼容双套字段命名，默认值与规范统一
@@ -156,7 +175,7 @@ export function generatePlaceholders(params: GeneratePlaceholdersParams): Genera
 
   const indexPath = path.join(outDir, 'index.html')
   if (!fs.existsSync(indexPath)) {
-    return { success: false, filesGenerated: [], routesCount: 0 }
+    return { success: false, filesGenerated: [], routesCount: 0, details: [] }
   }
 
   const indexHtmlContent = fs.readFileSync(indexPath, 'utf8')
@@ -191,25 +210,39 @@ export function generatePlaceholders(params: GeneratePlaceholdersParams): Genera
   }
 
   // 3. 计算每个页面经过 uni-pretty-url 映射后的最终展示路径
-  const targetPrettyPaths = new Set<string>()
+  const routeMap = new Map<string, PlaceholderType>()
+
+  const addRoute = (r: string, type: PlaceholderType) => {
+    if (!r || typeof r !== 'string') return
+    const trimmed = r.trim()
+    if (!trimmed || trimmed === '/') return
+    if (trimmed.includes(':') || trimmed.includes('*')) return
+
+    const existing = routeMap.get(trimmed)
+    if (!existing) {
+      routeMap.set(trimmed, type)
+    } else if (existing === 'raw' && (type === 'pretty' || type === 'extra')) {
+      routeMap.set(trimmed, type)
+    }
+  }
 
   for (const pagePath of pageCandidates) {
     const rawPath = pagePath.startsWith('/') ? pagePath : `/${pagePath}`
     try {
       const pretty = toPretty(rawPath, config)
-      if (pretty && pretty !== '/') {
-        targetPrettyPaths.add(pretty)
+      if (pretty && pretty !== '/' && pretty !== rawPath) {
+        addRoute(pretty, 'pretty')
       }
     } catch {}
 
     // 原始路径也保留一份兜底 (例如 /pages/material/index)
-    targetPrettyPaths.add(rawPath)
+    addRoute(rawPath, 'raw')
   }
 
   // 收集配置中已有的静态 alias 路径 (排除含有动态参数 :name 的)
   for (const alias of config.aliases || []) {
     if (alias.pretty && !alias.pretty.includes(':') && alias.pretty !== '/') {
-      targetPrettyPaths.add(alias.pretty)
+      addRoute(alias.pretty, 'pretty')
     }
   }
 
@@ -220,34 +253,17 @@ export function generatePlaceholders(params: GeneratePlaceholdersParams): Genera
   ]
   for (const r of extras) {
     if (r && typeof r === 'string' && r !== '/') {
-      targetPrettyPaths.add(r)
+      addRoute(r, 'extra')
     }
   }
 
   // 4. 为每个路由安全生成物理文件
   const filesGenerated: string[] = []
+  const details: PlaceholderDetail[] = []
 
-  // 辅助安全写文件，带有防目录冲突与异常保护
-  const safeWriteFile = (targetFile: string) => {
-    try {
-      // 若同名文件路径已是目录，则不可写入为文件
-      if (fs.existsSync(targetFile) && fs.statSync(targetFile).isDirectory()) {
-        return
-      }
-      fs.mkdirSync(path.dirname(targetFile), { recursive: true })
-      fs.writeFileSync(targetFile, indexHtmlContent)
-      filesGenerated.push(targetFile)
-    } catch {}
-  }
-
-  for (const prettyPath of targetPrettyPaths) {
-    if (!prettyPath || typeof prettyPath !== 'string') continue
-
-    // 排除包含动态参数 (:name) 或通配符 (*) 的路径
-    if (prettyPath.includes(':') || prettyPath.includes('*')) continue
-
+  for (const [route, type] of routeMap.entries()) {
     // 清洗路径：剥离 query 与 hash，剥离首尾斜杠
-    const clean = prettyPath.split('?')[0].split('#')[0].replace(/^\/+/, '').replace(/\/+$/, '')
+    const clean = route.split('?')[0].split('#')[0].replace(/^\/+/, '').replace(/\/+$/, '')
     if (!clean || clean === 'index.html' || clean === '.html') continue
 
     // 路径遍历防御
@@ -259,6 +275,23 @@ export function generatePlaceholders(params: GeneratePlaceholdersParams): Genera
     // Windows 平台非法文件名字符跳过 (<>:"|?*)
     if (/[<>:"|?*]/.test(normalizedClean)) {
       continue
+    }
+
+    const currentFiles: string[] = []
+
+    // 辅助安全写文件，带有防目录冲突与异常保护
+    const safeWriteFile = (targetFile: string) => {
+      try {
+        // 若同名文件路径已是目录，则不可写入为文件
+        if (fs.existsSync(targetFile) && fs.statSync(targetFile).isDirectory()) {
+          return
+        }
+        fs.mkdirSync(path.dirname(targetFile), { recursive: true })
+        fs.writeFileSync(targetFile, indexHtmlContent)
+        filesGenerated.push(targetFile)
+        const rel = path.relative(outDir, targetFile).replace(/\\/g, '/')
+        currentFiles.push(rel)
+      } catch {}
     }
 
     if (clean.endsWith('.html')) {
@@ -316,11 +349,20 @@ export function generatePlaceholders(params: GeneratePlaceholdersParams): Genera
         safeWriteFile(noExtFile)
       }
     }
+
+    if (currentFiles.length > 0) {
+      details.push({
+        route,
+        type,
+        files: Array.from(new Set(currentFiles)),
+      })
+    }
   }
 
   return {
     success: true,
     filesGenerated: Array.from(new Set(filesGenerated)),
-    routesCount: targetPrettyPaths.size,
+    routesCount: routeMap.size,
+    details,
   }
 }
