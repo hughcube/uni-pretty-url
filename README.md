@@ -265,6 +265,8 @@ interface UniPrettyUrlOptions {
     noExtFiles?: boolean
     /** 自定义页面路径列表（默认从 pages.json 自动提取） */
     pages?: string[]
+    /** 是否在控制台打印完整路由物理文件映射清单，默认 false */
+    verbose?: boolean
   }
 }
 ```

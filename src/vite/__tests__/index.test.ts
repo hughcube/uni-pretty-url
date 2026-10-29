@@ -274,6 +274,45 @@ describe('uniPrettyUrl plugin', () => {
       warnSpy.mockRestore()
     })
 
+    it('H5 平台在开启 staticPlaceholders 时优先使用 viteLogger.info 与 viteLogger.warn', () => {
+      process.env.UNI_PLATFORM = 'h5'
+      const mockLogger = {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      }
+      const plugin = uniPrettyUrl({
+        staticPlaceholders: { verbose: true },
+        aliases: [{ real: '/pages/index/index', pretty: '/home.html' }],
+      })
+      const tmp = path.join(os.tmpdir(), 'uni-test-logger-' + Date.now())
+      fs.mkdirSync(tmp, { recursive: true })
+      fs.writeFileSync(path.join(tmp, 'index.html'), '<html></html>')
+
+      ;(plugin as any).configResolved({
+        root: process.cwd(),
+        build: { outDir: tmp },
+        logger: mockLogger,
+      })
+
+      expect(() => (plugin as any).closeBundle()).not.toThrow()
+      expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('静态占位文件生成完成'))
+
+      // 验证未找到 index.html 时调用 viteLogger.warn
+      const failPlugin = uniPrettyUrl({ staticPlaceholders: true })
+      ;(failPlugin as any).configResolved({
+        root: process.cwd(),
+        build: { outDir: '/non-existent-dir-' + Date.now() },
+        logger: mockLogger,
+      })
+      expect(() => (failPlugin as any).closeBundle()).not.toThrow()
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('未能生成静态占位 HTML'))
+
+      try {
+        fs.rmSync(tmp, { recursive: true, force: true })
+      } catch {}
+    })
+
     it('H5 平台在 serve 模式下不触发 closeBundle 静态占位生成与 warning', () => {
       process.env.UNI_PLATFORM = 'h5'
       const plugin = uniPrettyUrl({
