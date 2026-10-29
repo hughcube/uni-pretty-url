@@ -38,6 +38,10 @@ describe('toPretty', () => {
       expect(toPretty('/', defaultConfig)).toBe('/')
     })
 
+    it('前缀路径 /pages 返回 /', () => {
+      expect(toPretty('/pages', defaultConfig)).toBe('/')
+    })
+
     it('自定义前缀', () => {
       const c = cfg({ pagesPrefix: 'pkg' })
       expect(toPretty('/pkg/home', c)).toBe('/home')
@@ -301,6 +305,52 @@ describe('toReal', () => {
       expect(toReal('/course/detail?id=123#section', defaultConfig)).toBe(
         '/pages/course/detail?id=123#section',
       )
+    })
+  })
+
+  // === 静态物理占位 HTML / index.html 反向映射 ===
+  describe('静态物理占位 HTML / index.html 反向映射', () => {
+    it('/index.html 映射为根路径首页 (支持 homeRoute)', () => {
+      const configWithHome = cfg({ homeRoute: '/pages/index/index' })
+      expect(toReal('/index.html', configWithHome)).toBe('/pages/index/index')
+      expect(toReal('/index.html?tab=1#sec', configWithHome)).toBe('/pages/index/index?tab=1#sec')
+      expect(toReal('/index.html', defaultConfig)).toBe('/')
+    })
+
+    it('/foo.html 与 /foo/index.html 能反向匹配 pretty 为 /foo 的 alias', () => {
+      const aliasConfig = cfg({
+        aliases: [
+          { real: '/pages/material/index', pretty: '/material' },
+        ],
+      })
+      expect(toReal('/material.html', aliasConfig)).toBe('/pages/material/index')
+      expect(toReal('/material/index', aliasConfig)).toBe('/pages/material/index')
+      expect(toReal('/material/index.html', aliasConfig)).toBe('/pages/material/index')
+      expect(toReal('/material.html?from=share#title', aliasConfig)).toBe(
+        '/pages/material/index?from=share#title',
+      )
+    })
+
+    it('原始路由物理占位文件 /pages/.../index.html 自动剥离 .html 恢复为真实路由', () => {
+      expect(toReal('/pages/material/index.html', defaultConfig)).toBe('/pages/material/index')
+      expect(toReal('/pages/material/index/index.html', defaultConfig)).toBe('/pages/material/index')
+      expect(toReal('/pages/material/index.html?v=2', defaultConfig)).toBe('/pages/material/index?v=2')
+    })
+
+    it('无 alias 的普通 strip 路由 .html 与 /index.html 正常还原', () => {
+      expect(toReal('/user/profile.html', defaultConfig)).toBe('/pages/user/profile')
+      expect(toReal('/user/profile/index.html', defaultConfig)).toBe('/pages/user/profile')
+    })
+
+    it('显式定义带 .html 的 alias 优先精准匹配', () => {
+      const explicitHtmlConfig = cfg({
+        aliases: [
+          { real: '/pages/custom/page', pretty: '/custom.html' },
+          { real: '/pages/article/detail', pretty: '/p/:id.html', params: { id: 'query.id' } },
+        ],
+      })
+      expect(toReal('/custom.html', explicitHtmlConfig)).toBe('/pages/custom/page')
+      expect(toReal('/p/1024.html', explicitHtmlConfig)).toBe('/pages/article/detail?id=1024')
     })
   })
 

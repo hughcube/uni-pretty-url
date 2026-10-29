@@ -39,8 +39,42 @@ describe('generator - parseJsonSafe', () => {
     expect(parseJsonSafe(raw)).toEqual({ pages: ['page1', 'page2'] })
   })
 
-  it('should return null on invalid json', () => {
+  it('should preserve URLs, slashes and commas inside strings', () => {
+    const raw = `
+      {
+        // 注释 1
+        "url": "https://example.com/api?a=1//2",
+        /* 注释 2 */
+        "text": "hello /* not a comment */ world",
+        "trailing": "nested, } comma",
+        "pages": [
+          { "path": "pages/index/index" },
+        ],
+      }
+    `
+    expect(parseJsonSafe(raw)).toEqual({
+      url: 'https://example.com/api?a=1//2',
+      text: 'hello /* not a comment */ world',
+      trailing: 'nested, } comma',
+      pages: [{ path: 'pages/index/index' }],
+    })
+  })
+
+  it('should return null on invalid json or non-string input', () => {
     expect(parseJsonSafe('not json')).toBeNull()
+    expect(parseJsonSafe(null as any)).toBeNull()
+    expect(parseJsonSafe(123 as any)).toBeNull()
+  })
+
+  it('should tolerate multiple consecutive trailing commas', () => {
+    const raw = `
+      {
+        "pages": [
+          "page1",,,
+        ],,
+      }
+    `
+    expect(parseJsonSafe(raw)).toEqual({ pages: ['page1'] })
   })
 })
 
@@ -335,5 +369,161 @@ describe('generator - generatePlaceholders', () => {
       options: true,
     })
     expect(res.success).toBe(true)
+  })
+
+  it('should support README standard options: htmlFiles, dirIndexFiles, noExtFiles, pages', () => {
+    const config: PrettyUrlConfig = { pagesPrefix: 'pages', aliases: [] }
+    const res = generatePlaceholders({
+      root: rootDir,
+      outDir,
+      config,
+      options: {
+        htmlFiles: true,
+        dirIndexFiles: false,
+        noExtFiles: true,
+        pages: ['/pages/custom/page1', 'pages/custom/page2'],
+      },
+    })
+    expect(res.success).toBe(true)
+    // 验证生成了 .html 文件
+    expect(fs.existsSync(path.join(outDir, 'pages/custom/page1.html'))).toBe(true)
+    // 验证生成了无后缀文件 (因为 dirIndexFiles 为 false)
+    expect(fs.existsSync(path.join(outDir, 'pages/custom/page1'))).toBe(true)
+    // 验证没有生成 index.html
+    expect(fs.existsSync(path.join(outDir, 'pages/custom/page1/index.html'))).toBe(false)
+  })
+
+  it('should support process.env.UNI_INPUT_DIR for pages.json discovery', () => {
+    const customInput = path.join(tmpDir, 'custom-uni-src')
+    fs.mkdirSync(customInput, { recursive: true })
+    fs.writeFileSync(path.join(customInput, 'pages.json'), '{"pages":[{"path":"custom-dir/page"}]}')
+
+    // 临时设置 UNI_INPUT_DIR
+    const oldInput = process.env.UNI_INPUT_DIR
+    process.env.UNI_INPUT_DIR = customInput
+
+    try {
+      const config: PrettyUrlConfig = { pagesPrefix: 'pages', aliases: [] }
+      const res = generatePlaceholders({
+        root: rootDir,
+        outDir,
+        config,
+        options: true,
+      })
+      expect(res.success).toBe(true)
+      expect(fs.existsSync(path.join(outDir, 'custom-dir/page.html'))).toBe(true)
+    } finally {
+      if (oldInput) {
+        process.env.UNI_INPUT_DIR = oldInput
+      } else {
+        delete process.env.UNI_INPUT_DIR
+      }
+    }
+  })
+
+  it('should support lowercase subpackages in extractPagesFromConfig', () => {
+    const pagesJson = JSON.stringify({
+      pages: [{ path: 'pages/home/index' }],
+      subpackages: [
+        {
+          root: 'sub-pkg',
+          pages: [{ path: 'item/index' }],
+        },
+      ],
+    })
+    const pages = extractPagesFromConfig(pagesJson)
+    expect(pages).toContain('pages/home/index')
+    expect(pages).toContain('sub-pkg/item/index')
+  })
+
+  it('should safely ignore dynamic routes, wildcards, traversal and invalid chars without crashing', () => {
+    const config: PrettyUrlConfig = {
+      pagesPrefix: 'pages',
+      aliases: [
+        { real: '/pages/detail', pretty: '/detail/:id' },
+        { real: '/pages/wild', pretty: '/wild/*' },
+      ],
+    }
+    const res = generatePlaceholders({
+      root: rootDir,
+      outDir,
+      config,
+      options: {
+        extraRoutes: [
+          '/dynamic/:id',
+          '/wildcard/*',
+          '../../escape-path',
+          '/invalid<char>?foo=1',
+        ],
+      },
+    })
+    expect(res.success).toBe(true)
+    // 不应生成带 :id 或 * 的非法文件
+    expect(fs.existsSync(path.join(outDir, 'dynamic/:id.html'))).toBe(false)
+    expect(fs.existsSync(path.join(outDir, 'wildcard/*.html'))).toBe(false)
+    expect(fs.existsSync(path.join(rootDir, 'escape-path.html'))).toBe(false)
+  })
+
+  it('should safely handle directory vs file conflict when both dirIndexFiles and noExtFiles are true', () => {
+    const config: PrettyUrlConfig = {
+      pagesPrefix: 'pages',
+      aliases: [{ real: '/pages/conflict', pretty: '/conflict' }],
+    }
+    const res = generatePlaceholders({
+      root: rootDir,
+      outDir,
+      config,
+      options: {
+        dirIndexFiles: true,
+        noExtFiles: true,
+        htmlFiles: true,
+      },
+    })
+    expect(res.success).toBe(true)
+    // 目录 conflict/index.html 应该正常存在
+    expect(fs.existsSync(path.join(outDir, 'conflict/index.html'))).toBe(true)
+    // conflict 本身应该是一个目录，且未发生异常报错崩溃
+    expect(fs.statSync(path.join(outDir, 'conflict')).isDirectory()).toBe(true)
+  })
+
+  it('should generate directory index.html for routes ending with /index even when htmlFiles is false', () => {
+    const config: PrettyUrlConfig = {
+      pagesPrefix: 'pages',
+      aliases: [],
+    }
+    const res = generatePlaceholders({
+      root: rootDir,
+      outDir,
+      config,
+      options: {
+        htmlFiles: false,
+        dirIndexFiles: true,
+        pages: ['/pages/material/index'],
+      },
+    })
+    expect(res.success).toBe(true)
+    // 应该在 material/ 目录下生成唯一的目录文件 index.html，供 /material/ 目录请求使用
+    expect(fs.existsSync(path.join(outDir, 'material/index.html'))).toBe(true)
+    // 因为 htmlFiles 为 false，不应该生成 material.html
+    expect(fs.existsSync(path.join(outDir, 'material.html'))).toBe(false)
+  })
+
+  it('should generate proper directory index.html for directory-style pretty aliases ending with /', () => {
+    const config: PrettyUrlConfig = {
+      pagesPrefix: 'pages',
+      aliases: [{ real: '/pages/catalog/list', pretty: '/catalog/' }],
+    }
+    const res = generatePlaceholders({
+      root: rootDir,
+      outDir,
+      config,
+      options: {
+        dirIndexFiles: true,
+        htmlFiles: true,
+      },
+    })
+    expect(res.success).toBe(true)
+    expect(fs.existsSync(path.join(outDir, 'catalog/index.html'))).toBe(true)
+    expect(fs.existsSync(path.join(outDir, 'catalog.html'))).toBe(true)
   })
 })

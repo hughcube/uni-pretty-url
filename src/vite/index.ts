@@ -86,6 +86,7 @@ export function uniPrettyUrl(options: UniPrettyUrlOptions = {}): Plugin {
   let realVueRouterPath: string | null = null
   let projectRoot: string = process.cwd()
   let buildOutDir: string = 'dist/build/h5'
+  let isServeMode: boolean = false
 
   const config: PrettyUrlConfig = {
     pagesPrefix: options.pagesPrefix || 'pages',
@@ -124,6 +125,7 @@ export function uniPrettyUrl(options: UniPrettyUrlOptions = {}): Plugin {
       const isH5 = process.env.UNI_PLATFORM === 'h5'
       if (!isH5) return
 
+      isServeMode = resolvedConfig.command === 'serve'
       projectRoot = resolvedConfig.root || process.cwd()
       buildOutDir = resolvedConfig.build?.outDir || 'dist/build/h5'
       realVueRouterPath = resolveRealVueRouter(projectRoot)
@@ -156,7 +158,7 @@ export function uniPrettyUrl(options: UniPrettyUrlOptions = {}): Plugin {
 
     closeBundle() {
       const isH5 = process.env.UNI_PLATFORM === 'h5'
-      if (!isH5) return
+      if (!isH5 || isServeMode) return
 
       // 若明确设置 staticPlaceholders (boolean 或 object) 则触发物理生成
       if (options.staticPlaceholders) {
@@ -168,6 +170,8 @@ export function uniPrettyUrl(options: UniPrettyUrlOptions = {}): Plugin {
         })
         if (result.success && result.filesGenerated.length > 0) {
           console.log(`\n✓ [uni-pretty-url] 已自动生成 ${result.filesGenerated.length} 个全路由静态物理占位 HTML (覆盖 ${result.routesCount} 个页面路由)`)
+        } else if (!result.success) {
+          console.warn(`\n! [uni-pretty-url] 未能生成静态占位 HTML：在 "${buildOutDir}" 下未找到 index.html。请确认打包已生成 index.html 或正确指定 staticPlaceholders.outDir。`)
         }
       }
     },

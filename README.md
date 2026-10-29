@@ -255,6 +255,8 @@ interface UniPrettyUrlOptions {
    * @default false
    */
   staticPlaceholders?: boolean | {
+    /** 输出目录（默认自动探测 dist/build/h5 或 dist） */
+    outDir?: string
     /** 是否生成带 .html 后缀的文件，默认 true */
     htmlFiles?: boolean
     /** 是否生成子目录/index.html，默认 true */

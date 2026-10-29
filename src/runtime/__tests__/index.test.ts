@@ -75,6 +75,25 @@ describe('createPrettyHistory', () => {
     expect(pretty.location).toBe('/pages/course/detail')
   })
 
+  it('location 访问静态占位 .html 文件时被正确还原为 real', () => {
+    const raw = createMockHistory()
+    const configWithAlias: PrettyUrlConfig = {
+      pagesPrefix: 'pages',
+      aliases: [{ real: '/pages/material/index', pretty: '/material' }],
+      homeRoute: '/pages/index/index',
+    }
+    const pretty = createPrettyHistory(raw, configWithAlias)
+
+    ;(raw as any).location = '/index.html'
+    expect(pretty.location).toBe('/pages/index/index')
+
+    ;(raw as any).location = '/material.html'
+    expect(pretty.location).toBe('/pages/material/index')
+
+    ;(raw as any).location = '/material/index.html'
+    expect(pretty.location).toBe('/pages/material/index')
+  })
+
   it('state 原样透传', () => {
     const raw = createMockHistory()
     const pretty = createPrettyHistory(raw, defaultConfig)

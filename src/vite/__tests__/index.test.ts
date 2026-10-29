@@ -255,5 +255,43 @@ describe('uniPrettyUrl plugin', () => {
         fs.rmSync(tmp, { recursive: true, force: true })
       } catch {}
     })
+
+    it('H5 平台开启 staticPlaceholders 但找不到 index.html 时输出 warning', () => {
+      process.env.UNI_PLATFORM = 'h5'
+      const plugin = uniPrettyUrl({
+        staticPlaceholders: true,
+      })
+      const nonExistentDir = path.join(os.tmpdir(), 'non-existent-dir-' + Date.now())
+
+      ;(plugin as any).configResolved({
+        root: process.cwd(),
+        build: { outDir: nonExistentDir },
+      })
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      expect(() => (plugin as any).closeBundle()).not.toThrow()
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('未能生成静态占位 HTML'))
+      warnSpy.mockRestore()
+    })
+
+    it('H5 平台在 serve 模式下不触发 closeBundle 静态占位生成与 warning', () => {
+      process.env.UNI_PLATFORM = 'h5'
+      const plugin = uniPrettyUrl({
+        staticPlaceholders: true,
+      })
+      ;(plugin as any).configResolved({
+        command: 'serve',
+        root: process.cwd(),
+        build: { outDir: '/non-existent' },
+      })
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      expect(() => (plugin as any).closeBundle()).not.toThrow()
+      expect(warnSpy).not.toHaveBeenCalled()
+      expect(logSpy).not.toHaveBeenCalled()
+      warnSpy.mockRestore()
+      logSpy.mockRestore()
+    })
   })
 })
