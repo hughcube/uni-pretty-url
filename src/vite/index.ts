@@ -89,7 +89,6 @@ export function uniPrettyUrl(options: UniPrettyUrlOptions = {}): Plugin {
   let projectRoot: string = process.cwd()
   let buildOutDir: string = 'dist/build/h5'
   let isServeMode: boolean = false
-  let viteLogger: any = null
 
   const config: PrettyUrlConfig = {
     pagesPrefix: options.pagesPrefix || 'pages',
@@ -132,7 +131,6 @@ export function uniPrettyUrl(options: UniPrettyUrlOptions = {}): Plugin {
       projectRoot = resolvedConfig.root || process.cwd()
       buildOutDir = resolvedConfig.build?.outDir || 'dist/build/h5'
       realVueRouterPath = resolveRealVueRouter(projectRoot)
-      viteLogger = resolvedConfig.logger
     },
 
     resolveId(id) {
@@ -183,18 +181,9 @@ export function uniPrettyUrl(options: UniPrettyUrlOptions = {}): Plugin {
             duration,
             verbose: isVerbose,
           })
-          if (viteLogger?.info) {
-            viteLogger.info(`\n${summary}`)
-          } else {
-            console.log(`\n${summary}`)
-          }
+          console.log(`\n${summary}`)
         } else if (!result.success) {
-          const msg = `! [uni-pretty-url] 未能生成静态占位 HTML：在 "${buildOutDir}" 下未找到 index.html。请确认打包已生成 index.html 或正确指定 staticPlaceholders.outDir。`
-          if (viteLogger?.warn) {
-            viteLogger.warn(`\n${msg}`)
-          } else {
-            console.warn(`\n${msg}`)
-          }
+          console.warn(`\n! [uni-pretty-url] 未能生成静态占位 HTML：在 "${buildOutDir}" 下未找到 index.html。请确认打包已生成 index.html 或正确指定 staticPlaceholders.outDir。`)
         }
       }
     },
