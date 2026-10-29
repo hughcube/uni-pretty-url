@@ -244,6 +244,26 @@ interface UniPrettyUrlOptions {
    * 例如 "/pages/index/index"
    */
   homeRoute?: string
+
+  /**
+   * 构建期全路由静态物理占位 HTML 生成选项
+   * 专为 CDN / OSS / COS / S3 等无服务器重写能力的纯静态托管设计。
+   * 为 pages.json 及 aliases 中定义的所有路由生成物理 HTML 镜像，解决直接访问或刷新报 404 的问题。
+   * - true: 为所有路由生成 .html 文件及目录 index.html
+   * - false: 禁用
+   * - object: 细粒度控制生成格式
+   * @default false
+   */
+  staticPlaceholders?: boolean | {
+    /** 是否生成带 .html 后缀的文件，默认 true */
+    htmlFiles?: boolean
+    /** 是否生成子目录/index.html，默认 true */
+    dirIndexFiles?: boolean
+    /** 是否生成无后缀文件，默认 false */
+    noExtFiles?: boolean
+    /** 自定义页面路径列表（默认从 pages.json 自动提取） */
+    pages?: string[]
+  }
 }
 ```
 
@@ -262,9 +282,11 @@ interface UniPrettyUrlOptions {
 
 ## 部署
 
-history 模式下，美化后的 URL（如 `/topics/123`）是前端路由，服务器上并没有对应的物理文件。**生产环境必须配置 SPA fallback**，把未命中静态资源的请求统一回退到 `index.html`，否则用户直接访问或刷新美化 URL 会得到 404。
+history 模式下，美化后的 URL（如 `/topics/123`）是前端路由，服务器上并没有对应的物理文件。生产环境通常需要解决 SPA 刷新 404 的问题：
 
-Nginx 示例：
+### 方案 A：Nginx 或支持重写的主机（标准 SPA Fallback）
+
+把未命中静态资源的请求统一回退到 `index.html`：
 
 ```nginx
 location / {
@@ -273,6 +295,22 @@ location / {
 ```
 
 Vercel / Netlify / Cloudflare Pages 等静态托管平台开启「SPA / single-page app」回退即可。若部署在子路径下，需让 `manifest.json` 的 `h5.router.base` 与服务器路径保持一致。
+
+### 方案 B：纯静态对象存储 / CDN（OSS / COS / S3 / 纯静态目录）
+
+当把 H5 产物直接推送到阿里云 OSS、腾讯云 COS、AWS S3 或纯静态 CDN，且没有或不便配置动态重写规则时，开启 `staticPlaceholders: true`：
+
+```ts
+uniPrettyUrl({
+  staticPlaceholders: true,
+  aliases: [
+    { real: '/pages/index/index', pretty: '/' },
+    { real: '/pages/material/index', pretty: '/material.html' },
+  ],
+})
+```
+
+构建时将自动为所有路由和别名生成物理静态 HTML 文件（如 `material.html`、`material/index.html` 等），CDN / 对象存储即可按 URL 直接定位到物理文件，HTTP 200 返回，彻底告别 404 NoSuchKey。
 
 > 本地 `dev:h5` 用的是 Vite dev server，已自带 SPA fallback，所以开发时不会遇到这个问题——它只在生产部署时才出现。
 

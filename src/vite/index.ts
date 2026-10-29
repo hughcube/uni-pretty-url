@@ -1,8 +1,11 @@
-import type { Plugin } from 'vite'
+import type { Plugin, ResolvedConfig } from 'vite'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { readFileSync } from 'node:fs'
 import type { PrettyUrlConfig } from '../core/types'
+import { generatePlaceholders, type StaticPlaceholdersOptions } from './generator'
+
+export * from './generator'
 
 const VIRTUAL_WRAPPER = '\0virtual:uni-pretty-url/vue-router-wrapper'
 const VIRTUAL_REAL = '\0virtual:uni-pretty-url/vue-router-real'
@@ -21,6 +24,12 @@ export interface UniPrettyUrlOptions {
     excludePrefixes?: string[]
   }
   homeRoute?: string
+  /**
+   * 自动生成全路由静态物理 HTML 占位（专为纯静态 CDN / OSS / S3 / 离线包设计）
+   * 开启后，在构建打包完成时，自动将 index.html 复制到每个路由对应的物理文件或目录。
+   * 即使部署在没有任何 Nginx try_files 的静态对象存储上，刷新也绝不 404！
+   */
+  staticPlaceholders?: boolean | StaticPlaceholdersOptions
 }
 
 function resolveRealVueRouter(root: string): string {
@@ -75,6 +84,8 @@ export function createWebHashHistory(base) {
 
 export function uniPrettyUrl(options: UniPrettyUrlOptions = {}): Plugin {
   let realVueRouterPath: string | null = null
+  let projectRoot: string = process.cwd()
+  let buildOutDir: string = 'dist/build/h5'
 
   const config: PrettyUrlConfig = {
     pagesPrefix: options.pagesPrefix || 'pages',
@@ -109,11 +120,13 @@ export function uniPrettyUrl(options: UniPrettyUrlOptions = {}): Plugin {
       }
     },
 
-    configResolved(config) {
+    configResolved(resolvedConfig) {
       const isH5 = process.env.UNI_PLATFORM === 'h5'
       if (!isH5) return
 
-      realVueRouterPath = resolveRealVueRouter(config.root)
+      projectRoot = resolvedConfig.root || process.cwd()
+      buildOutDir = resolvedConfig.build?.outDir || 'dist/build/h5'
+      realVueRouterPath = resolveRealVueRouter(projectRoot)
     },
 
     resolveId(id) {
@@ -139,6 +152,24 @@ export function uniPrettyUrl(options: UniPrettyUrlOptions = {}): Plugin {
       }
 
       return null
+    },
+
+    closeBundle() {
+      const isH5 = process.env.UNI_PLATFORM === 'h5'
+      if (!isH5) return
+
+      // 若明确设置 staticPlaceholders (boolean 或 object) 则触发物理生成
+      if (options.staticPlaceholders) {
+        const result = generatePlaceholders({
+          root: projectRoot,
+          outDir: buildOutDir,
+          config,
+          options: options.staticPlaceholders,
+        })
+        if (result.success && result.filesGenerated.length > 0) {
+          console.log(`\n✓ [uni-pretty-url] 已自动生成 ${result.filesGenerated.length} 个全路由静态物理占位 HTML (覆盖 ${result.routesCount} 个页面路由)`)
+        }
+      }
     },
   }
 }
