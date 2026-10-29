@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import fs from 'node:fs'
+import path from 'node:path'
+import os from 'node:os'
 import { uniPrettyUrl } from '../index'
 import { createRequire } from 'node:module'
 
@@ -212,6 +215,45 @@ describe('uniPrettyUrl plugin', () => {
       const plugin = uniPrettyUrl({ homeRoute: '/pages/index/index' })
       const result = (plugin as any).load('\0virtual:uni-pretty-url/vue-router-wrapper')
       expect(result).toContain('"homeRoute":"/pages/index/index"')
+    })
+  })
+
+  describe('closeBundle hook', () => {
+    it('非 H5 平台静默跳过', () => {
+      process.env.UNI_PLATFORM = 'mp-weixin'
+      const plugin = uniPrettyUrl({ staticPlaceholders: true })
+      expect(() => (plugin as any).closeBundle()).not.toThrow()
+    })
+
+    it('H5 平台未开启 staticPlaceholders 静默跳过', () => {
+      process.env.UNI_PLATFORM = 'h5'
+      const plugin = uniPrettyUrl({ staticPlaceholders: false })
+      expect(() => (plugin as any).closeBundle()).not.toThrow()
+    })
+
+    it('H5 平台开启 staticPlaceholders 时正常触发生成并打印日志', () => {
+      process.env.UNI_PLATFORM = 'h5'
+      const plugin = uniPrettyUrl({
+        staticPlaceholders: true,
+        aliases: [{ real: '/pages/index/index', pretty: '/home.html' }],
+      })
+      const tmp = path.join(os.tmpdir(), 'uni-test-closebundle-' + Date.now())
+      fs.mkdirSync(tmp, { recursive: true })
+      fs.writeFileSync(path.join(tmp, 'index.html'), '<html></html>')
+
+      ;(plugin as any).configResolved({
+        root: process.cwd(),
+        build: { outDir: tmp },
+      })
+      
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      expect(() => (plugin as any).closeBundle()).not.toThrow()
+      expect(logSpy).toHaveBeenCalled()
+      logSpy.mockRestore()
+
+      try {
+        fs.rmSync(tmp, { recursive: true, force: true })
+      } catch {}
     })
   })
 })

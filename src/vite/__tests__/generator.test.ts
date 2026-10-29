@@ -69,6 +69,14 @@ describe('generator - extractPagesFromConfig', () => {
       'subA/detail',
     ])
   })
+
+  it('should handle malformed or empty config', () => {
+    expect(extractPagesFromConfig('')).toEqual([])
+    expect(extractPagesFromConfig('{}')).toEqual([])
+    expect(extractPagesFromConfig('{"pages": null}')).toEqual([])
+    expect(extractPagesFromConfig('{"pages": [{"no_path": 1}], "subPackages": null}')).toEqual([])
+    expect(extractPagesFromConfig('{"subPackages": [{"root": "pkg", "pages": null}]}')).toEqual([])
+  })
 })
 
 describe('generator - generatePlaceholders', () => {
@@ -175,5 +183,157 @@ describe('generator - generatePlaceholders', () => {
     // 应该同时生成 wrong.html 和 wrong/index.html
     expect(fs.existsSync(path.join(outDir, 'wrong.html'))).toBe(true)
     expect(fs.existsSync(path.join(outDir, 'wrong/index.html'))).toBe(true)
+  })
+
+  it('should support root pages.json fallback and extraRoutes', () => {
+    // 移除 src/pages.json，移至 project 根目录 pages.json
+    fs.rmSync(path.join(rootDir, 'src/pages.json'))
+    fs.writeFileSync(path.join(rootDir, 'pages.json'), '{"pages":[{"path":"pages/extra/index"}]}')
+
+    const config: PrettyUrlConfig = {
+      pagesPrefix: 'pages',
+      aliases: [
+        { real: '/pages/index/index', pretty: '/' },
+        // 带参数的别名不应直接生成无参数文件
+        { real: '/pages/detail', pretty: '/detail/:id' },
+      ],
+    }
+
+    const res = generatePlaceholders({
+      root: rootDir,
+      outDir,
+      config,
+      options: {
+        extraRoutes: ['/custom-page', '/'],
+      },
+    })
+
+    expect(res.success).toBe(true)
+    expect(fs.existsSync(path.join(outDir, 'custom-page.html'))).toBe(true)
+    expect(fs.existsSync(path.join(outDir, 'pages/extra/index.html'))).toBe(true)
+  })
+
+  it('should respect false flags for htmlSuffix, subDirIndex and cleanUrlNoExt', () => {
+    const config: PrettyUrlConfig = {
+      pagesPrefix: 'pages',
+      aliases: [
+        { real: '/pages/material/index', pretty: '/material' },
+        { real: '/pages/about/index', pretty: '/about.html' },
+      ],
+    }
+
+    const res = generatePlaceholders({
+      root: rootDir,
+      outDir,
+      config,
+      options: {
+        htmlSuffix: false,
+        subDirIndex: false,
+        cleanUrlNoExt: false,
+        extraRoutes: ['', '/'],
+      },
+    })
+
+    expect(res.success).toBe(true)
+    // 所有生成 flag 均为 false 时，不生成对应文件
+    expect(fs.existsSync(path.join(outDir, 'material.html'))).toBe(false)
+    expect(fs.existsSync(path.join(outDir, 'material/index.html'))).toBe(false)
+    expect(fs.existsSync(path.join(outDir, 'about/index.html'))).toBe(false)
+  })
+
+  it('should generate cleanUrlNoExt file when subDirIndex is false', () => {
+    const config: PrettyUrlConfig = {
+      pagesPrefix: 'pages',
+      aliases: [{ real: '/pages/material/index', pretty: '/standalone' }],
+    }
+    const res = generatePlaceholders({
+      root: rootDir,
+      outDir,
+      config,
+      options: {
+        htmlSuffix: false,
+        subDirIndex: false,
+        cleanUrlNoExt: true,
+      },
+    })
+    expect(res.success).toBe(true)
+    const noExtFile = path.join(outDir, 'standalone')
+    expect(fs.existsSync(noExtFile)).toBe(true)
+    expect(fs.statSync(noExtFile).isFile()).toBe(true)
+  })
+
+  it('should cover branch edges: slash-prefixed pages, catch in toPretty, empty clean paths and undefined aliases', () => {
+    // 1. 包含以 / 开头的路径，以及引发 toPretty catch 的带参别名
+    const pagesJson = JSON.stringify({
+      pages: [
+        { path: '/pages/leading-slash' },
+        { path: 'pages/need-params' },
+      ],
+    })
+    fs.writeFileSync(path.join(rootDir, 'src/pages.json'), pagesJson)
+
+    const config: PrettyUrlConfig = {
+      pagesPrefix: 'pages',
+      aliases: [
+        {
+          real: '/pages/need-params',
+          pretty: '/param/:id',
+          params: { id: 'query.id' },
+        },
+      ],
+    }
+
+    const res = generatePlaceholders({
+      root: rootDir,
+      outDir,
+      config,
+      options: {
+        extraRoutes: ['///', '/ok'],
+      },
+    })
+    expect(res.success).toBe(true)
+
+    // 2. config.aliases 为空时的分支
+    const resNoAliases = generatePlaceholders({
+      root: rootDir,
+      outDir,
+      config: { pagesPrefix: 'pages' } as any,
+      options: true,
+    })
+    expect(resNoAliases.success).toBe(true)
+  })
+
+  it('should resolve default outDir when outDir is not provided (h5 candidate vs dist candidate)', () => {
+    const config: PrettyUrlConfig = { pagesPrefix: 'pages', aliases: [] }
+    // 1. 当 dist/build/h5 存在时
+    const res1 = generatePlaceholders({
+      root: rootDir,
+      config,
+      options: true,
+    })
+    expect(res1.success).toBe(true)
+
+    // 2. 当 dist/build/h5 不存在，但 dist 存在时
+    fs.rmSync(path.join(rootDir, 'dist/build/h5'), { recursive: true, force: true })
+    fs.mkdirSync(path.join(rootDir, 'dist'), { recursive: true })
+    fs.writeFileSync(path.join(rootDir, 'dist/index.html'), '<html></html>')
+
+    const res2 = generatePlaceholders({
+      root: rootDir,
+      config,
+      options: true,
+    })
+    expect(res2.success).toBe(true)
+  })
+
+  it('should resolve relative outDir correctly', () => {
+    const config: PrettyUrlConfig = { pagesPrefix: 'pages', aliases: [] }
+    const res = generatePlaceholders({
+      root: rootDir,
+      outDir: 'dist/build/h5',
+      config,
+      options: true,
+    })
+    expect(res.success).toBe(true)
   })
 })
