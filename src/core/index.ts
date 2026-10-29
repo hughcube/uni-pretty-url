@@ -71,6 +71,37 @@ function normalizePath(path: string): string {
   return path
 }
 
+function normalizePrettyPath(pathname: string, prefix = 'pages'): string {
+  const norm = normalizePath(pathname)
+  if (norm === '/index.html' || norm === 'index.html' || norm === '/index' || norm === 'index') {
+    return '/'
+  }
+
+  // 1. 若以 /index/index.html 结尾 (如 /pages/foo/index/index.html)，去除 /index.html
+  if (norm.endsWith('/index/index.html')) {
+    const stem = norm.slice(0, -11)
+    return stem ? normalizePath(stem) : '/'
+  }
+
+  // 2. 若以 /index.html 结尾，优先去除 /index.html (如 /material/index.html -> /material, /user/profile/index.html -> /user/profile)
+  if (norm.endsWith('/index.html')) {
+    const withoutIndexHtml = norm.slice(0, -11)
+    // 如果是 /prefix/.../index.html 且不是重复 index，去除 .html 以保留原始页面的 /index
+    if (norm.startsWith(`/${prefix}/`) && !withoutIndexHtml.endsWith('/index')) {
+      return norm.slice(0, -5)
+    }
+    return withoutIndexHtml ? normalizePath(withoutIndexHtml) : '/'
+  }
+
+  // 3. 若以 .html 结尾，去除 .html
+  if (norm.endsWith('.html')) {
+    const stem = norm.slice(0, -5)
+    return stem ? normalizePath(stem) : '/'
+  }
+
+  return norm
+}
+
 function normalizeExcludePrefix(prefix: string): string {
   return prefix.startsWith('/') ? prefix : `/${prefix}`
 }
@@ -254,8 +285,28 @@ export function toReal(prettyUrl: string, config: PrettyUrlConfig): string {
   if (!prettyUrl) return prettyUrl
   const { pathname, query, hash } = parseUrl(prettyUrl)
   const q = parseQueryParts(query)
+  const prefix = config.pagesPrefix || 'pages'
 
-  const resolved = resolvePretty(config.aliases, pathname)
+  // 1. 优先尝试精准匹配原始 pathname (支持用户显式定义带 .html 的 alias)
+  let resolved = resolvePretty(config.aliases, pathname)
+  const normPath = normalizePath(pathname)
+  const cleanPath = normalizePrettyPath(pathname, prefix)
+
+  // 2. 若未匹配，尝试用去掉 .html 的路径匹配 alias
+  if (!resolved && cleanPath !== pathname && cleanPath !== normPath) {
+    resolved = resolvePretty(config.aliases, cleanPath)
+  }
+
+  // 3. 若仍未匹配，且路径以 /index 结尾，尝试去掉 /index 后匹配 alias (如 /material/index.html -> /material)
+  let effectivePath = cleanPath
+  if (!resolved && effectivePath.length > 6 && effectivePath.endsWith('/index')) {
+    const withoutIndex = normalizePath(effectivePath.slice(0, -6))
+    const indexResolved = resolvePretty(config.aliases, withoutIndex)
+    if (indexResolved) {
+      resolved = indexResolved
+    }
+  }
+
   if (resolved) {
     const generatedQuery: string[] = []
     const consumedKeys = new Set<string>()
@@ -284,31 +335,36 @@ export function toReal(prettyUrl: string, config: PrettyUrlConfig): string {
     return `${resolved.alias.real}${qs ? '?' + qs : ''}`
   }
 
-  const prefix = config.pagesPrefix || 'pages'
   if (!pathname.startsWith('/')) return prettyUrl
 
-  const normPath = normalizePath(pathname)
+  if (effectivePath.startsWith(`/${prefix}/`) || effectivePath === `/${prefix}`) {
+    if (hash) return `${effectivePath}${query ? '?' + query : ''}${hash}`
+    if (query) return `${effectivePath}?${query}`
+    return effectivePath
+  }
 
-  if (normPath.startsWith(`/${prefix}/`) || normPath === `/${prefix}`) return prettyUrl
-
-  if (normPath === '/') {
+  if (effectivePath === '/') {
     if (config.homeRoute) {
       const home = config.homeRoute.startsWith('/') ? config.homeRoute : `/${config.homeRoute}`
       if (hash) return `${home}${query ? '?' + query : ''}${hash}`
       if (query) return `${home}?${query}`
       return home
     }
-    return prettyUrl
+    if (hash) return `/${query ? '?' + query : ''}${hash}`
+    if (query) return `/?${query}`
+    return '/'
   }
 
   const excludePrefixes = (config.strip?.excludePrefixes ?? []).map(normalizeExcludePrefix)
   for (const ep of excludePrefixes) {
-    if (normPath.startsWith(ep)) {
-      return prettyUrl
+    if (effectivePath.startsWith(ep)) {
+      if (hash) return `${effectivePath}${query ? '?' + query : ''}${hash}`
+      if (query) return `${effectivePath}?${query}`
+      return effectivePath
     }
   }
 
-  const realPath = `/${prefix}${normPath}`
+  const realPath = `/${prefix}${effectivePath}`
   if (hash) return `${realPath}${query ? '?' + query : ''}${hash}`
   if (query) return `${realPath}?${query}`
   return realPath
