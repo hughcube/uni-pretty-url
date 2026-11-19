@@ -297,11 +297,26 @@ export function toReal(prettyUrl: string, config: PrettyUrlConfig): string {
     resolved = resolvePretty(config.aliases, cleanPath)
   }
 
-  // 3. 若仍未匹配，且路径以 /index 结尾，尝试去掉 /index 后匹配 alias (如 /material/index.html -> /material)
+  // 3. 若未匹配，尝试补齐 .html 匹配 alias (例如 pretty 定义为 /profile.html，而访问的是 /profile 或 /profile/ 或 /profile/index.html)
+  if (!resolved) {
+    for (const candidate of [cleanPath, normPath]) {
+      if (candidate && candidate !== '/' && !candidate.endsWith('.html')) {
+        const withHtml = resolvePretty(config.aliases, `${candidate}.html`)
+        if (withHtml) {
+          resolved = withHtml
+          break
+        }
+      }
+    }
+  }
+
+  // 4. 若仍未匹配，且路径以 /index 结尾，尝试去掉 /index 后匹配 alias (如 /material/index.html -> /material)
   let effectivePath = cleanPath
   if (!resolved && effectivePath.length > 6 && effectivePath.endsWith('/index')) {
     const withoutIndex = normalizePath(effectivePath.slice(0, -6))
-    const indexResolved = resolvePretty(config.aliases, withoutIndex)
+    const indexResolved =
+      resolvePretty(config.aliases, withoutIndex) ||
+      resolvePretty(config.aliases, `${withoutIndex}.html`)
     if (indexResolved) {
       resolved = indexResolved
     }

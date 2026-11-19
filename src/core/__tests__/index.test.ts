@@ -352,6 +352,28 @@ describe('toReal', () => {
       expect(toReal('/custom.html', explicitHtmlConfig)).toBe('/pages/custom/page')
       expect(toReal('/p/1024.html', explicitHtmlConfig)).toBe('/pages/article/detail?id=1024')
     })
+
+    it('显式定义带 .html 的 alias 能反向兼容匹配无后缀 /custom, /custom/, /custom/index, /custom/index.html', () => {
+      const explicitHtmlConfig = cfg({
+        aliases: [
+          { real: '/pages/profile/index', pretty: '/profile.html' },
+          { real: '/pages/article/detail', pretty: '/p/:id.html', params: { id: 'query.id' } },
+        ],
+      })
+      // 无后缀干净路径
+      expect(toReal('/profile', explicitHtmlConfig)).toBe('/pages/profile/index')
+      // 尾部斜杠目录路径
+      expect(toReal('/profile/', explicitHtmlConfig)).toBe('/pages/profile/index')
+      // 静态物理占位 index / index.html
+      expect(toReal('/profile/index', explicitHtmlConfig)).toBe('/pages/profile/index')
+      expect(toReal('/profile/index.html', explicitHtmlConfig)).toBe('/pages/profile/index')
+      // 带 query / hash
+      expect(toReal('/profile?from=wechat#tab', explicitHtmlConfig)).toBe(
+        '/pages/profile/index?from=wechat#tab',
+      )
+      // 带参数的 alias 无 .html 访问
+      expect(toReal('/p/2048', explicitHtmlConfig)).toBe('/pages/article/detail?id=2048')
+    })
   })
 
   // === 边界情况 ===
